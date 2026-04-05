@@ -1,5 +1,9 @@
 #include <gtest/gtest.h>
 
+#include <arpa/inet.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
@@ -7,7 +11,6 @@
 #include <string>
 #include <vector>
 
-namespace oems::cli_test {
 namespace {
 
 std::vector<std::string> g_recv_chunks;
@@ -60,7 +63,6 @@ auto test_close(int fd) -> int {
 }
 
 }  // namespace
-}  // namespace oems::cli_test
 
 #define socket test_socket
 #define connect test_connect
@@ -78,7 +80,6 @@ auto test_close(int fd) -> int {
 #undef connect
 #undef socket
 
-namespace oems::cli_test {
 namespace {
 
 class SendHttpTest : public ::testing::Test {
@@ -103,4 +104,3 @@ TEST_F(SendHttpTest, ReadsHttpResponseUntilPeerClosesConnection) {
 }
 
 }  // namespace
-}  // namespace oems::cli_test

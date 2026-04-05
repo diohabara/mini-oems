@@ -215,10 +215,11 @@ TEST_F(ServerFixture, ListOrdersRejectsUnknownStatusFilter) {
   HttpClient::Send("POST", "/v1/orders",
                    R"({"symbol":"AAPL","side":"buy","type":"limit","price":10000,"quantity":100})");
 
-  auto [status, body] = HttpClient::Send("GET", "/v1/orders?status=DefinitelyNotReal", "");
+  auto [status, body] =
+      HttpClient::Send("GET", "/v1/orders?symbol=AAPL&status=DefinitelyNotReal", "");
 
-  EXPECT_EQ(status, 400);
-  EXPECT_NE(body.find("invalid"), std::string::npos);
+  EXPECT_EQ(status, 400) << "body=" << body;
+  EXPECT_NE(body.find("invalid"), std::string::npos) << "body=" << body;
 }
 
 }  // namespace

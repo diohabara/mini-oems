@@ -21,7 +21,7 @@ just integration-test  # Run integration tests only
 just system-test       # Run end-to-end HTTP system tests
 just coverage          # gcov + lcov HTML report under build-cov/coverage-html/
 just bench             # Google Benchmark suite under build-bench/
-just docs              # Generate Doxygen HTML, build EN/JA doc switch links, and open index.html
+just docs              # Generate EN/JA Doxygen HTML and open the Japanese docs entry page
 just api-gen           # Regenerate src/api-gen/ from docs/openapi.yaml
 just api-gen-check     # Fail if src/api-gen/ is stale vs committed (CI)
 just openapi-validate  # Validate docs/openapi.yaml

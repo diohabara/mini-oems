@@ -10,12 +10,12 @@ if [ ! -f "$target" ]; then
 fi
 
 open_with_macos() {
-  open "$target"
+  open "$target" >/dev/null 2>&1 &
 }
 
 open_with_wsl() {
   if command -v wslview >/dev/null 2>&1; then
-    wslview "$target"
+    wslview "$target" >/dev/null 2>&1 &
     return
   fi
 

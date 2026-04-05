@@ -5,8 +5,13 @@
     return last || "index.html";
   }
 
-  function currentLanguage(fileName) {
-    return fileName.indexOf("_8ja") >= 0 ? "ja" : "en";
+  function currentLanguage() {
+    var parts = window.location.pathname.split("/");
+    if (parts.indexOf("ja") >= 0) {
+      return "ja";
+    }
+
+    return "en";
   }
 
   function buildTarget(fileName, hash) {
@@ -47,7 +52,7 @@
 
     var map = window.DOCS_I18N_MAP || {};
     var fileName = currentFileName();
-    var lang = currentLanguage(fileName);
+    var lang = currentLanguage();
     var alternate = map[fileName] || null;
     var hash = window.location.hash || "";
     var enTarget = lang === "en" ? fileName : alternate;

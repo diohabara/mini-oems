@@ -71,9 +71,12 @@ bench: dev
 # ----- Docs (requires doxygen in the dev image) -----
 
 docs: dev
-    podman run --rm -v {{workdir}}:/app -w /app {{dev_image}} doxygen Doxyfile
-    ./scripts/write-docs-i18n-map.sh build/docs/html
-    ./scripts/open-docs.sh build/docs/html/index.html
+    rm -rf build/docs/en build/docs/ja build/docs/html build/docs/index.html
+    podman run --rm -v {{workdir}}:/app -w /app {{dev_image}} sh -c '\
+        ./scripts/run-localized-doxygen.sh en build/docs && \
+        ./scripts/run-localized-doxygen.sh ja build/docs'
+    ./scripts/write-docs-i18n-map.sh build/docs/en build/docs/ja
+    ./scripts/open-docs.sh build/docs/ja/index.html
 
 # ----- OpenAPI codegen (spec-first) -----
 

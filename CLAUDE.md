@@ -6,6 +6,27 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Mini OEMS — a minimal Order Management / Execution Management System in modern C++23. Accepts order flow over FIX, applies risk checks, matches with price-time priority, and runs TWAP/VWAP execution algorithms. See `docs/architecture.md` for the canonical v1 system design and `docs/fix-latest-guide.md` for the FIX protocol stance (FIX Latest app layer, FIX4/FIXT sessions, FIXS/TLS transport, with FIX 4.2/4.4 interop).
 
+## Workflow
+
+**Always work in a git worktree under `.worktrees/`** — do not modify the main checkout directly. This keeps the primary working tree clean, lets multiple tasks/PRs run in parallel, and prevents half-finished work from blocking a quick fix on another branch.
+
+```bash
+# Start a new task on a fresh branch
+git worktree add .worktrees/<short-task-name> -b <type>/<short-task-name>
+cd .worktrees/<short-task-name>
+
+# ... edit, build, test, commit, push, open PR ...
+
+# After the PR is merged, remove the worktree
+cd /home/jio/repo/mini-oems
+git worktree remove .worktrees/<short-task-name>
+git branch -d <type>/<short-task-name>
+```
+
+- Branch name prefix follows Conventional Commits: `feat/...`, `fix/...`, `refactor/...`, `docs/...`, `test/...`, `chore/...`, `perf/...`, `ci/...`, `build/...`.
+- `.worktrees/` is already in `.gitignore`.
+- One worktree per PR. If a worktree accumulates unrelated changes, split them into separate worktrees before opening the PR.
+
 ## Commands
 
 All commands run inside a Podman dev container (`docker.io/nixos/nix:latest` + `nix profile install` for cmake/ninja/gcc14/clang-tools/lcov/doxygen) via `just`:

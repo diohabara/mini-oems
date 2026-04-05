@@ -1,8 +1,8 @@
 #include "core/fix/fix_message.h"
 
-#include <cstdio>
-
 #include <gtest/gtest.h>
+
+#include <cstdio>
 
 namespace oems::fix {
 namespace {

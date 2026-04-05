@@ -179,8 +179,7 @@ auto OrderManager::RestoreFromDatabase() -> Result<void> {
   for (const auto& order : *orders) {
     orders_[order.internal_id] = order;
     max_order_id = std::max(max_order_id, order.internal_id);
-    if ((order.status == OrderStatus::kAccepted ||
-         order.status == OrderStatus::kPartiallyFilled) &&
+    if ((order.status == OrderStatus::kAccepted || order.status == OrderStatus::kPartiallyFilled) &&
         order.type == OrderType::kLimit && order.remaining_qty > 0) {
       if (auto restored = engine_.RestoreRestingOrder(order); !restored.has_value()) {
         return std::unexpected(restored.error());

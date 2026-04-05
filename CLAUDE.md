@@ -40,7 +40,7 @@ just integration-test  # Only integration tests
 just system-test       # End-to-end HTTP system tests
 just coverage          # gcov + lcov HTML report under build-cov/coverage-html/
 just bench             # Google Benchmark under build-bench/
-just docs              # Doxygen HTML under build/docs/html/
+just docs              # Generate EN/JA Doxygen HTML and open the Japanese docs entry page
 just fmt               # clang-format -i on all src/test/bench .cc/.h
 just lint              # clang-tidy (requires configured build/)
 just check             # fmt + lint + test

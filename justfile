@@ -72,6 +72,8 @@ bench: dev
 
 docs: dev
     podman run --rm -v {{workdir}}:/app -w /app {{dev_image}} doxygen Doxyfile
+    ./scripts/write-docs-i18n-map.sh build/docs/html
+    ./scripts/open-docs.sh build/docs/html/index.html
 
 # ----- OpenAPI codegen (spec-first) -----
 

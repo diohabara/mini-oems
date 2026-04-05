@@ -1,0 +1,292 @@
+openapi: 3.0.3
+info:
+  title: Mini OEMS API
+  version: "1.0.0"
+  description: |
+    Minimal Order / Execution Management System HTTP API (v1).
+    This specification is the single source of truth — server and client
+    code is generated from it via openapi-generator.
+  license:
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+servers:
+  - url: http://localhost:8080
+    description: Local dev server
+
+tags:
+  - name: health
+  - name: orders
+  - name: books
+  - name: executions
+
+paths:
+  /v1/health:
+    get:
+      tags: [health]
+      operationId: getHealth
+      summary: Server liveness probe
+      responses:
+        "200":
+          description: Server is up
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Health" }
+
+  /v1/orders:
+    post:
+      tags: [orders]
+      operationId: submitOrder
+      summary: Submit a new order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/NewOrderRequest" }
+      responses:
+        "201":
+          description: Order accepted (may already be filled)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "400":
+          description: Malformed request body
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "422":
+          description: Order rejected by risk or validation
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+    get:
+      tags: [orders]
+      operationId: listOrders
+      summary: List orders, optionally filtered
+      parameters:
+        - name: symbol
+          in: query
+          required: false
+          schema: { type: string }
+        - name: status
+          in: query
+          required: false
+          schema: { $ref: "#/components/schemas/OrderStatus" }
+      responses:
+        "200":
+          description: Matching orders
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Order" }
+
+  /v1/orders/{id}:
+    get:
+      tags: [orders]
+      operationId: getOrder
+      summary: Fetch a single order by internal id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        "200":
+          description: Order found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+
+  /v1/orders/{id}/cancel:
+    post:
+      tags: [orders]
+      operationId: cancelOrder
+      summary: Cancel a resting order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer, format: int64, minimum: 1 }
+      responses:
+        "200":
+          description: Order cancelled
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Order" }
+        "404":
+          description: Order not found
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+        "422":
+          description: Order cannot be cancelled (already filled/rejected)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+
+  /v1/books/{symbol}:
+    get:
+      tags: [books]
+      operationId: getBook
+      summary: Get the current order book snapshot for a symbol
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Book snapshot
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/Book" }
+        "404":
+          description: No book for symbol
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/ApiError" }
+
+  /v1/executions:
+    get:
+      tags: [executions]
+      operationId: listExecutions
+      summary: List all executed fills
+      responses:
+        "200":
+          description: Fills
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: "#/components/schemas/Fill" }
+
+components:
+  schemas:
+
+    Health:
+      type: object
+      required: [status]
+      properties:
+        status: { type: string, example: "ok" }
+
+    ApiError:
+      type: object
+      required: [error]
+      properties:
+        error: { type: string, example: "OrderNotFound" }
+
+    Side:
+      type: string
+      enum: [Buy, Sell]
+
+    OrderType:
+      type: string
+      enum: [Limit, Market]
+
+    OrderStatus:
+      type: string
+      enum:
+        - PendingNew
+        - Accepted
+        - PartiallyFilled
+        - Filled
+        - PendingCancel
+        - Cancelled
+        - Rejected
+
+    NewOrderRequest:
+      type: object
+      required: [symbol, side, type, quantity]
+      properties:
+        client_order_id:
+          type: string
+          description: Optional client-assigned identifier
+        symbol:
+          type: string
+          example: "AAPL"
+        side:
+          type: string
+          enum: [buy, sell]
+          description: Lowercase for request; response uses canonical Buy/Sell
+        type:
+          type: string
+          enum: [limit, market]
+        price:
+          type: integer
+          format: int64
+          description: Price in integer cents; required for limit orders
+          example: 10000
+        quantity:
+          type: integer
+          format: int64
+          minimum: 1
+          example: 100
+
+    Order:
+      type: object
+      required:
+        - internal_id
+        - client_order_id
+        - symbol
+        - side
+        - type
+        - price
+        - order_qty
+        - filled_qty
+        - remaining_qty
+        - status
+      properties:
+        internal_id:    { type: integer, format: int64 }
+        client_order_id: { type: string }
+        symbol:         { type: string }
+        side:           { $ref: "#/components/schemas/Side" }
+        type:           { $ref: "#/components/schemas/OrderType" }
+        price:          { type: integer, format: int64 }
+        order_qty:      { type: integer, format: int64 }
+        filled_qty:     { type: integer, format: int64 }
+        remaining_qty:  { type: integer, format: int64 }
+        status:         { $ref: "#/components/schemas/OrderStatus" }
+
+    Fill:
+      type: object
+      required:
+        - execution_id
+        - symbol
+        - aggressive_order_id
+        - passive_order_id
+        - side
+        - price
+        - quantity
+      properties:
+        execution_id:        { type: integer, format: int64 }
+        symbol:              { type: string }
+        aggressive_order_id: { type: integer, format: int64 }
+        passive_order_id:    { type: integer, format: int64 }
+        side:                { $ref: "#/components/schemas/Side" }
+        price:               { type: integer, format: int64 }
+        quantity:            { type: integer, format: int64 }
+
+    PriceLevel:
+      type: object
+      required: [price, total_qty, order_count]
+      properties:
+        price:       { type: integer, format: int64 }
+        total_qty:   { type: integer, format: int64 }
+        order_count: { type: integer, format: int64 }
+
+    Book:
+      type: object
+      required: [symbol, bids, asks]
+      properties:
+        symbol: { type: string }
+        bids:
+          type: array
+          items: { $ref: "#/components/schemas/PriceLevel" }
+        asks:
+          type: array
+          items: { $ref: "#/components/schemas/PriceLevel" }

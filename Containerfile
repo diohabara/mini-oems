@@ -1,19 +1,28 @@
-FROM docker.io/library/debian:bookworm-slim AS dev
+FROM docker.io/nixos/nix:latest AS dev
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl xz-utils git ca-certificates \
-    && curl --proto '=https' --tlsv1.2 -sSf -L \
-       https://install.determinate.systems/nix \
-       | sh -s -- install linux --no-confirm --init none \
-    && rm -rf /var/lib/apt/lists/*
+# Enable flakes for `nix profile install nixpkgs#...` syntax.
+RUN mkdir -p /etc/nix && \
+    echo "experimental-features = nix-command flakes" >> /etc/nix/nix.conf
 
-ENV PATH="/nix/var/nix/profiles/default/bin:$PATH"
-
+# Core toolchain + HTTP framework + codegen tooling.
 RUN nix profile install \
     nixpkgs#cmake \
     nixpkgs#ninja \
     nixpkgs#gcc14 \
-    nixpkgs#clang-tools
+    nixpkgs#clang-tools \
+    nixpkgs#lcov \
+    nixpkgs#doxygen \
+    nixpkgs#oatpp \
+    nixpkgs#nlohmann_json \
+    nixpkgs#openapi-generator-cli \
+    nixpkgs#jre_minimal \
+    nixpkgs#pkg-config \
+    nixpkgs#gnused
+
+# Put gcov (from gcc-14) on PATH.  `/usr/local/bin` is not on the nixos/nix
+# PATH, so symlink into the default nix profile bin which is.
+RUN ln -sf $(find /nix/store -name gcov -path '*14.3*' -type f | head -1) \
+        /nix/var/nix/profiles/default/bin/gcov
 
 WORKDIR /app
 

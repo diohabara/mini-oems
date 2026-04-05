@@ -1,9 +1,25 @@
 #include "core/fix/fix_gateway.h"
 
+#include <atomic>
 #include <charconv>
+#include <limits>
 #include <string>
 
 namespace oems::fix {
+
+namespace {
+
+auto NextSyntheticOrderId() -> OrderId {
+  static std::atomic<OrderId> next_order_id{std::numeric_limits<OrderId>::max()};
+  return next_order_id.fetch_sub(1, std::memory_order_relaxed);
+}
+
+auto NextExecId() -> std::uint64_t {
+  static std::atomic<std::uint64_t> next_exec_id{1};
+  return next_exec_id.fetch_add(1, std::memory_order_relaxed);
+}
+
+}  // namespace
 
 FixGateway::FixGateway(order::OrderManager& om) : om_(om) {}
 
@@ -57,7 +73,7 @@ auto FixGateway::BuildExecutionReport(const order::Order& order, FixSession& ses
   m.Set(tag::kMsgType, std::string(msg_type::kExecutionReport));
   m.Set(tag::kOrderID, std::to_string(order.internal_id));
   m.Set(tag::kClOrdID, order.client_order_id);
-  m.Set(tag::kExecID, std::to_string(order.internal_id));
+  m.Set(tag::kExecID, std::to_string(NextExecId()));
   m.Set(tag::kSymbol, order.symbol.value);
   m.Set(tag::kSide, std::string(1, FixSideChar(order.side)));
   m.Set(tag::kOrderQty, std::to_string(order.order_qty));
@@ -105,6 +121,7 @@ auto FixGateway::HandleNewOrderSingle(const FixMessage& msg, FixSession& session
   if (!submitted.has_value()) {
     // Return a rejection ExecutionReport.
     order::Order rejected;
+    rejected.internal_id = NextSyntheticOrderId();
     rejected.client_order_id = req.client_order_id;
     rejected.symbol = req.symbol;
     rejected.side = req.side;

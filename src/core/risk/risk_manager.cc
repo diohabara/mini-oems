@@ -138,7 +138,29 @@ auto RiskManager::CheckTickSize(const RiskRequest& req) const -> Result<void> {
 }
 
 auto RiskManager::CheckDailyLimit(const RiskRequest& req) const -> Result<void> {
-  (void)req;  // Implemented in follow-up PR (W5).
+  if (req.type != OrderType::kLimit) {
+    // Market orders carry no price — nothing to validate.
+    return {};
+  }
+  auto it = configs_.find(req.symbol.value);
+  if (it == configs_.end()) {
+    return {};
+  }
+  const auto& cfg = it->second;
+  if (cfg.previous_close <= 0 || cfg.daily_limit_bps <= 0) {
+    // Sentinel: unset → disabled.
+    return {};
+  }
+  // |price - previous_close| > previous_close * daily_limit_bps / 10000
+  // Cross-multiply in __int128 to avoid overflow (pattern matches
+  // CheckPriceBand / the notional check).
+  const Price diff = req.price >= cfg.previous_close ? req.price - cfg.previous_close
+                                                     : cfg.previous_close - req.price;
+  __int128 lhs = static_cast<__int128>(diff) * 10000;
+  __int128 rhs = static_cast<__int128>(cfg.previous_close) * cfg.daily_limit_bps;
+  if (lhs > rhs) {
+    return std::unexpected(OemsError::kRiskBreachDailyLimit);
+  }
   return {};
 }
 

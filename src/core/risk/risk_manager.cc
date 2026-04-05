@@ -112,8 +112,29 @@ auto RiskManager::CheckLotSize(const RiskRequest& req) const -> Result<void> {
 }
 
 auto RiskManager::CheckTickSize(const RiskRequest& req) const -> Result<void> {
-  (void)req;  // Implemented in follow-up PR (W4).
-  return {};
+  if (req.type != OrderType::kLimit) {
+    // Market orders carry no price — nothing to validate.
+    return {};
+  }
+  auto it = configs_.find(req.symbol.value);
+  if (it == configs_.end()) {
+    return {};
+  }
+  const auto& bands = it->second.tick_bands;
+  if (bands.empty()) {
+    // Sentinel empty => disabled.
+    return {};
+  }
+  for (const auto& band : bands) {
+    if (req.price >= band.low && req.price <= band.high) {
+      if (band.tick <= 0 || req.price % band.tick != 0) {
+        return std::unexpected(OemsError::kRiskBreachTickSize);
+      }
+      return {};
+    }
+  }
+  // Price did not fall into any configured band.
+  return std::unexpected(OemsError::kRiskBreachTickSize);
 }
 
 auto RiskManager::CheckDailyLimit(const RiskRequest& req) const -> Result<void> {

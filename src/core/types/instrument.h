@@ -19,6 +19,7 @@
  */
 
 #include <cstdint>
+#include <limits>
 #include <vector>
 
 #include "core/types/types.h"
@@ -63,6 +64,29 @@ struct SymbolConfig {
   /// the tick-size check.
   std::vector<TickBand> tick_bands{};
 };
+
+/**
+ * @brief Return the TSE standard tick bands (基本呼値) for regular-lot
+ * cash equities.
+ *
+ * Simplified v1 reference table. The live TSE price quotation table has
+ * finer granularity for TOPIX100 names and smaller/larger steps above
+ * 30,000 JPY; extend this as fixtures require.
+ *
+ * See: https://www.jpx.co.jp/equities/trading/domestic/03.html
+ */
+inline auto BuildTseStandardTickBands() -> std::vector<TickBand> {
+  return {
+      TickBand{.low = 0, .high = 3000, .tick = 1},
+      TickBand{.low = 3001, .high = 5000, .tick = 5},
+      TickBand{.low = 5001, .high = 30000, .tick = 10},
+      TickBand{.low = 30001, .high = 50000, .tick = 50},
+      TickBand{.low = 50001, .high = 300000, .tick = 100},
+      TickBand{.low = 300001, .high = 500000, .tick = 500},
+      TickBand{.low = 500001, .high = 3000000, .tick = 1000},
+      TickBand{.low = 3000001, .high = std::numeric_limits<Price>::max(), .tick = 10000},
+  };
+}
 
 }  // namespace oems
 

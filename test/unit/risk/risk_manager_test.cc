@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+#include <limits>
 #include <thread>
 
 namespace oems::risk {
@@ -154,9 +155,9 @@ TEST(RiskManagerTest, GetReferencePrice) {
   EXPECT_EQ(*ref, 10000);
 }
 
-// --- TSE tick size bands (呼値の刻み) ---
+// --- TSE daily price limit (値幅制限) ---
 
-RiskRequest MakeTickReq(Price price, Quantity qty = 100) {
+RiskRequest MakeLimitReq(Price price, Quantity qty = 100) {
   return RiskRequest{
       .symbol = Symbol{"7203"},
       .side = Side::kBuy,
@@ -166,76 +167,80 @@ RiskRequest MakeTickReq(Price price, Quantity qty = 100) {
   };
 }
 
-TEST(RiskManagerTickSizeTest, UnconfiguredSymbolSkipsCheck) {
-  RiskManager risk;
-  EXPECT_TRUE(risk.Check(MakeTickReq(2503)).has_value());
-}
-
-TEST(RiskManagerTickSizeTest, EmptyBandsDisableCheck) {
-  RiskManager risk;
-  SymbolConfig cfg;  // tick_bands empty
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
-  EXPECT_TRUE(risk.Check(MakeTickReq(2503)).has_value());
-}
-
-TEST(RiskManagerTickSizeTest, MarketOrdersBypassCheck) {
-  RiskManager risk;
+SymbolConfig TseDailyConfig(Price prev_close, std::int32_t bps) {
   SymbolConfig cfg;
-  cfg.tick_bands = BuildTseStandardTickBands();
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
+  cfg.previous_close = prev_close;
+  cfg.daily_limit_bps = bps;
+  return cfg;
+}
 
-  RiskRequest req = MakeTickReq(2503);
+TEST(RiskManagerDailyLimitTest, UnconfiguredSymbolSkipsCheck) {
+  RiskManager risk;
+  // 100x move is allowed in absence of config.
+  EXPECT_TRUE(risk.Check(MakeLimitReq(300000)).has_value());
+}
+
+TEST(RiskManagerDailyLimitTest, ZeroPreviousCloseDisablesCheck) {
+  RiskManager risk;
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(/*prev_close=*/0, /*bps=*/1000));
+  EXPECT_TRUE(risk.Check(MakeLimitReq(999999)).has_value());
+}
+
+TEST(RiskManagerDailyLimitTest, ZeroBpsDisablesCheck) {
+  RiskManager risk;
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(/*prev_close=*/3000, /*bps=*/0));
+  EXPECT_TRUE(risk.Check(MakeLimitReq(999999)).has_value());
+}
+
+TEST(RiskManagerDailyLimitTest, MarketOrdersBypassCheck) {
+  RiskManager risk;
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(3000, 100));
+  RiskRequest req = MakeLimitReq(0);
   req.type = OrderType::kMarket;
-  req.price = 0;  // market order carries no price
   EXPECT_TRUE(risk.Check(req).has_value());
 }
 
-TEST(RiskManagerTickSizeTest, PriceOnGridAccepted) {
+TEST(RiskManagerDailyLimitTest, PriceWithinLimitAccepted) {
   RiskManager risk;
-  SymbolConfig cfg;
-  cfg.tick_bands = BuildTseStandardTickBands();
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
-  EXPECT_TRUE(risk.Check(MakeTickReq(2500)).has_value());   // tick=1
-  EXPECT_TRUE(risk.Check(MakeTickReq(3005)).has_value());   // tick=5
-  EXPECT_TRUE(risk.Check(MakeTickReq(7000)).has_value());   // tick=10
-  EXPECT_TRUE(risk.Check(MakeTickReq(50000)).has_value());  // tick=50
+  // 10% band around 3000 = ±300 → [2700, 3300] inclusive.
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(3000, 1000));
+  EXPECT_TRUE(risk.Check(MakeLimitReq(3000)).has_value());
+  EXPECT_TRUE(risk.Check(MakeLimitReq(3300)).has_value());  // exact upper bound
+  EXPECT_TRUE(risk.Check(MakeLimitReq(2700)).has_value());  // exact lower bound
+  EXPECT_TRUE(risk.Check(MakeLimitReq(3100)).has_value());
 }
 
-TEST(RiskManagerTickSizeTest, PriceOffGridRejected) {
+TEST(RiskManagerDailyLimitTest, PriceAboveStopHighRejected) {
   RiskManager risk;
-  SymbolConfig cfg;
-  cfg.tick_bands = BuildTseStandardTickBands();
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
-
-  auto result = risk.Check(MakeTickReq(3002));
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(3000, 1000));
+  auto result = risk.Check(MakeLimitReq(3301));
   ASSERT_FALSE(result.has_value());
-  EXPECT_EQ(result.error(), OemsError::kRiskBreachTickSize);
-
-  auto result2 = risk.Check(MakeTickReq(7005));
-  ASSERT_FALSE(result2.has_value());
-  EXPECT_EQ(result2.error(), OemsError::kRiskBreachTickSize);
+  EXPECT_EQ(result.error(), OemsError::kRiskBreachDailyLimit);
 }
 
-TEST(RiskManagerTickSizeTest, BoundaryPriceUsesLowerBandTick) {
+TEST(RiskManagerDailyLimitTest, PriceBelowStopLowRejected) {
   RiskManager risk;
-  SymbolConfig cfg;
-  cfg.tick_bands = BuildTseStandardTickBands();
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
-  EXPECT_TRUE(risk.Check(MakeTickReq(3000)).has_value());
-  auto result = risk.Check(MakeTickReq(3001));
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(3000, 1000));
+  auto result = risk.Check(MakeLimitReq(2699));
   ASSERT_FALSE(result.has_value());
-  EXPECT_EQ(result.error(), OemsError::kRiskBreachTickSize);
-  EXPECT_TRUE(risk.Check(MakeTickReq(3005)).has_value());
+  EXPECT_EQ(result.error(), OemsError::kRiskBreachDailyLimit);
 }
 
-TEST(RiskManagerTickSizeTest, PriceOutsideAllBandsRejected) {
-  RiskManager risk;
-  SymbolConfig cfg;
-  cfg.tick_bands = {TickBand{.low = 100, .high = 1000, .tick = 1}};
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
-  auto result = risk.Check(MakeTickReq(50));
+TEST(RiskManagerDailyLimitTest, LargePreviousCloseDoesNotOverflow) {
+  // Sanity: large previous close + large price — the __int128 cross-multiply
+  // must not overflow. Relax notional/max-qty limits so we hit the daily
+  // check, not the other risk checks.
+  RiskLimits limits;
+  limits.max_order_qty = 1'000'000;
+  limits.max_notional = std::numeric_limits<Price>::max();
+  limits.price_band_bps = 10'000;  // effectively disable price band
+  RiskManager risk(limits);
+  risk.SetSymbolConfig(Symbol{"7203"}, TseDailyConfig(3'000'000, 1000));
+  EXPECT_TRUE(risk.Check(MakeLimitReq(3'000'000, 1)).has_value());
+  EXPECT_TRUE(risk.Check(MakeLimitReq(3'300'000, 1)).has_value());
+  auto result = risk.Check(MakeLimitReq(3'300'001, 1));
   ASSERT_FALSE(result.has_value());
-  EXPECT_EQ(result.error(), OemsError::kRiskBreachTickSize);
+  EXPECT_EQ(result.error(), OemsError::kRiskBreachDailyLimit);
 }
 
 }  // namespace

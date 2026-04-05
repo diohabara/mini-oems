@@ -102,6 +102,53 @@ TEST_F(FixGatewayTest, ExecutionReportFillProducesFTag) {
   EXPECT_EQ(er->Get(tag::kOrdStatus).value_or(""), "2");  // Filled
 }
 
+TEST_F(FixGatewayTest, RejectExecutionReportUsesValidExecId) {
+  LogOn();
+  FixMessage nos;
+  nos.Set(tag::kMsgType, std::string(msg_type::kNewOrderSingle));
+  nos.Set(tag::kClOrdID, "REJECT-1");
+  nos.Set(tag::kSymbol, "AAPL");
+  nos.Set(tag::kSide, "1");
+  nos.Set(tag::kOrdType, "2");
+  nos.Set(tag::kOrderQty, static_cast<std::int64_t>(0));
+  nos.Set(tag::kPrice, static_cast<std::int64_t>(10000));
+
+  auto er = gateway_.HandleNewOrderSingle(nos, session_);
+  ASSERT_TRUE(er.has_value());
+  EXPECT_EQ(er->Get(tag::kExecType).value_or(""), "8");
+  EXPECT_NE(er->Get(tag::kOrderID).value_or(""), "");
+  EXPECT_NE(er->Get(tag::kOrderID).value_or(""), "0");
+  EXPECT_NE(er->Get(tag::kExecID).value_or(""), "");
+  EXPECT_NE(er->Get(tag::kExecID).value_or(""), "0");
+}
+
+TEST_F(FixGatewayTest, MultipleExecutionReportsUseDistinctExecIds) {
+  LogOn();
+  FixMessage nos;
+  nos.Set(tag::kMsgType, std::string(msg_type::kNewOrderSingle));
+  nos.Set(tag::kClOrdID, "C1");
+  nos.Set(tag::kSymbol, "AAPL");
+  nos.Set(tag::kSide, "1");
+  nos.Set(tag::kOrdType, "2");
+  nos.Set(tag::kOrderQty, static_cast<std::int64_t>(100));
+  nos.Set(tag::kPrice, static_cast<std::int64_t>(10000));
+
+  auto accepted = gateway_.HandleNewOrderSingle(nos, session_);
+  ASSERT_TRUE(accepted.has_value());
+
+  FixMessage cancel;
+  cancel.Set(tag::kMsgType, std::string(msg_type::kOrderCancelRequest));
+  cancel.Set(tag::kOrderID, std::string(accepted->Get(tag::kOrderID).value_or("")));
+
+  auto cancelled = gateway_.HandleOrderCancelRequest(cancel, session_);
+  ASSERT_TRUE(cancelled.has_value());
+
+  EXPECT_EQ(accepted->Get(tag::kOrderID).value_or(""), cancelled->Get(tag::kOrderID).value_or(""));
+  EXPECT_NE(accepted->Get(tag::kExecID).value_or(""), "");
+  EXPECT_NE(cancelled->Get(tag::kExecID).value_or(""), "");
+  EXPECT_NE(accepted->Get(tag::kExecID).value_or(""), cancelled->Get(tag::kExecID).value_or(""));
+}
+
 TEST_F(FixGatewayTest, OrderCancelRequest) {
   LogOn();
   auto submitted = om_.SubmitOrder(order::NewOrderRequest{.symbol = Symbol{"AAPL"},

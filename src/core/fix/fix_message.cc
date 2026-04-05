@@ -7,6 +7,21 @@
 
 namespace oems::fix {
 
+namespace {
+
+auto FindTagStart(std::string_view raw, std::string_view needle) -> std::size_t {
+  auto pos = raw.find(needle);
+  if (pos == std::string_view::npos) {
+    return pos;
+  }
+  if (pos == 0 || raw[pos - 1] == kSoh) {
+    return pos;
+  }
+  return std::string_view::npos;
+}
+
+}  // namespace
+
 auto FixMessage::ComputeCheckSum(std::string_view buf) -> unsigned {
   unsigned sum = 0;
   for (std::uint8_t c : buf) {
@@ -45,6 +60,20 @@ auto FixMessage::ParseStrict(std::string_view raw) -> Result<FixMessage> {
   if (!parsed.has_value()) {
     return parsed;
   }
+  auto body_length = parsed->Get(tag::kBodyLength);
+  if (!body_length.has_value()) {
+    return std::unexpected(OemsError::kFixParseError);
+  }
+  auto body_length_pos = FindTagStart(raw, "9=");
+  if (body_length_pos == std::string_view::npos) {
+    return std::unexpected(OemsError::kFixParseError);
+  }
+  auto body_start = raw.find(kSoh, body_length_pos);
+  if (body_start == std::string_view::npos) {
+    return std::unexpected(OemsError::kFixParseError);
+  }
+  ++body_start;
+
   // Verify checksum: last field should be 10=XXX (3 digits).
   if (parsed->fields_.empty()) {
     return std::unexpected(OemsError::kFixParseError);
@@ -58,13 +87,21 @@ auto FixMessage::ParseStrict(std::string_view raw) -> Result<FixMessage> {
       "\x01"
       "10=");
   if (checksum_pos == std::string_view::npos) {
-    checksum_pos = raw.find("10=");
-    if (checksum_pos == std::string_view::npos) {
-      return std::unexpected(OemsError::kFixParseError);
-    }
-  } else {
-    ++checksum_pos;  // skip the SOH, include it in the checksum
+    return std::unexpected(OemsError::kFixParseError);
   }
+  if (checksum_pos < body_start) {
+    return std::unexpected(OemsError::kFixParseError);
+  }
+
+  std::int32_t claimed_body_length = 0;
+  auto [body_ptr, body_ec] = std::from_chars(
+      body_length->data(), body_length->data() + body_length->size(), claimed_body_length);
+  if (body_ec != std::errc{} || claimed_body_length < 0 ||
+      std::cmp_not_equal(static_cast<std::size_t>(claimed_body_length), checksum_pos - body_start + 1)) {
+    return std::unexpected(OemsError::kFixParseError);
+  }
+
+  ++checksum_pos;  // skip the SOH, include it in the checksum
   unsigned computed = ComputeCheckSum(raw.substr(0, checksum_pos));
   std::int32_t claimed = 0;
   auto [ptr, ec] =

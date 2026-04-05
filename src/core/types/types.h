@@ -22,7 +22,12 @@ using OrderId = std::uint64_t;
 /// @brief Execution identifier.
 using ExecutionId = std::uint64_t;
 
-/// @brief Price in integer cents (1 USD = 100).  Avoids floating-point.
+/// @brief Price in integer minor currency units.  Avoids floating-point.
+///
+/// For JPY (the TSE target market) the minor unit is 1 yen — there are no
+/// sub-yen units on TSE.  For currencies with a fractional minor unit
+/// (e.g. USD cents) the caller is responsible for matching the chosen
+/// scale end-to-end; v1 targets TSE exclusively so the unit is yen.
 using Price = std::int64_t;
 
 /// @brief Order or fill quantity (shares).

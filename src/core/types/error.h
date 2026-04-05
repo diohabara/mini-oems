@@ -39,6 +39,9 @@ enum class OemsError : std::uint8_t {
   kRiskBreachNotional,
   kRiskBreachPriceBand,
   kRiskBreachRateLimit,
+  kRiskBreachLotSize,
+  kRiskBreachTickSize,
+  kRiskBreachDailyLimit,
 
   // --- Matching ---
   kBookNotFound,
@@ -88,6 +91,12 @@ constexpr auto ErrorName(OemsError err) -> std::string_view {
       return "RiskBreachPriceBand";
     case OemsError::kRiskBreachRateLimit:
       return "RiskBreachRateLimit";
+    case OemsError::kRiskBreachLotSize:
+      return "RiskBreachLotSize";
+    case OemsError::kRiskBreachTickSize:
+      return "RiskBreachTickSize";
+    case OemsError::kRiskBreachDailyLimit:
+      return "RiskBreachDailyLimit";
     case OemsError::kBookNotFound:
       return "BookNotFound";
     case OemsError::kNoLiquidity:

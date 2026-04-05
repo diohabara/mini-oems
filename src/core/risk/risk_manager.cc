@@ -35,6 +35,16 @@ auto RiskManager::Check(const RiskRequest& req) -> Result<void> {
     }
   }
 
+  if (auto lot = CheckLotSize(req); !lot.has_value()) {
+    return lot;
+  }
+  if (auto tick = CheckTickSize(req); !tick.has_value()) {
+    return tick;
+  }
+  if (auto daily = CheckDailyLimit(req); !daily.has_value()) {
+    return daily;
+  }
+
   return CheckRateLimit();
 }
 
@@ -68,6 +78,34 @@ auto RiskManager::CheckPriceBand(const RiskRequest& req) const -> Result<void> {
   if (lhs > rhs) {
     return std::unexpected(OemsError::kRiskBreachPriceBand);
   }
+  return {};
+}
+
+void RiskManager::SetSymbolConfig(const Symbol& symbol, SymbolConfig config) {
+  config.symbol = symbol;
+  configs_[symbol.value] = std::move(config);
+}
+
+auto RiskManager::GetSymbolConfig(const Symbol& symbol) const -> const SymbolConfig* {
+  auto it = configs_.find(symbol.value);
+  if (it == configs_.end()) {
+    return nullptr;
+  }
+  return &it->second;
+}
+
+auto RiskManager::CheckLotSize(const RiskRequest& req) const -> Result<void> {
+  (void)req;  // Implemented in follow-up PR (W3).
+  return {};
+}
+
+auto RiskManager::CheckTickSize(const RiskRequest& req) const -> Result<void> {
+  (void)req;  // Implemented in follow-up PR (W4).
+  return {};
+}
+
+auto RiskManager::CheckDailyLimit(const RiskRequest& req) const -> Result<void> {
+  (void)req;  // Implemented in follow-up PR (W5).
   return {};
 }
 

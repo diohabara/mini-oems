@@ -110,7 +110,16 @@ All fallible functions return `Result<T> = std::expected<T, OemsError>` (defined
 
 ### Money representation
 
-Prices and notionals are `int64_t` cents — no floating point. Notional and price-band arithmetic uses `__int128` to avoid overflow on attacker-supplied values.
+Prices and notionals are `int64_t` **integer minor units** — no floating point. The interpretation of "minor unit" depends on the currency:
+
+- **JPY (TSE target market): 1 minor unit = 1 yen.** There are no sub-yen units on TSE, so `Price = 10000` means 10,000 JPY, not 100.00 JPY.
+- For reference: USD would use 1 minor unit = 1 cent (= 0.01 USD), but v1 targets TSE exclusively.
+
+Notional and price-band arithmetic uses `__int128` to avoid overflow on attacker-supplied values.
+
+### Per-symbol reference data (TSE)
+
+TSE-specific rules (lot size 売買単位, tick bands 呼値の刻み, daily price limits 値幅制限) live in `SymbolConfig` (`src/core/types/instrument.h`) and are installed on the Risk Manager via `SetSymbolConfig(symbol, config)`. Unconfigured symbols fall through every TSE-specific check unchanged.
 
 ### Design constraints worth preserving
 

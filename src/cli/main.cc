@@ -42,13 +42,19 @@ auto SendHttp(const std::string& method, const std::string& path, const std::str
       "Content-Length: {}\r\n\r\n{}",
       method, path, body.size(), body);
   ::send(fd, req.data(), req.size(), 0);
-  std::string resp(65536, '\0');
-  ssize_t n = ::recv(fd, resp.data(), resp.size(), 0);
+  std::string resp;
+  std::vector<char> buf(4096);
+  for (;;) {
+    ssize_t n = ::recv(fd, buf.data(), buf.size(), 0);
+    if (n <= 0) {
+      break;
+    }
+    resp.append(buf.data(), static_cast<std::size_t>(n));
+  }
   ::close(fd);
-  if (n <= 0) {
+  if (resp.empty()) {
     return "";
   }
-  resp.resize(static_cast<std::size_t>(n));
   // Extract body (after "\r\n\r\n").
   auto p = resp.find("\r\n\r\n");
   if (p == std::string::npos) {

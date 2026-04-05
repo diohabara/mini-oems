@@ -154,5 +154,71 @@ TEST(RiskManagerTest, GetReferencePrice) {
   EXPECT_EQ(*ref, 10000);
 }
 
+// --- TSE lot size (売買単位) ---
+
+RiskRequest MakeTseReq(Quantity qty, Price price = 2500) {
+  return RiskRequest{
+      .symbol = Symbol{"7203"},
+      .side = Side::kBuy,
+      .type = OrderType::kLimit,
+      .price = price,
+      .quantity = qty,
+  };
+}
+
+TEST(RiskManagerLotSizeTest, UnconfiguredSymbolAcceptsAnyMultiple) {
+  RiskManager risk;
+  // No SetSymbolConfig call: the rule is disabled by default.
+  EXPECT_TRUE(risk.Check(MakeTseReq(150)).has_value());
+  EXPECT_TRUE(risk.Check(MakeTseReq(73)).has_value());
+}
+
+TEST(RiskManagerLotSizeTest, ZeroLotSizeDisablesCheck) {
+  RiskManager risk;
+  SymbolConfig cfg;
+  cfg.lot_size = 0;  // explicit disable
+  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
+  EXPECT_TRUE(risk.Check(MakeTseReq(37)).has_value());
+}
+
+TEST(RiskManagerLotSizeTest, MultipleOfLotAccepted) {
+  RiskManager risk;
+  SymbolConfig cfg;
+  cfg.lot_size = 100;
+  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
+  EXPECT_TRUE(risk.Check(MakeTseReq(100)).has_value());
+  EXPECT_TRUE(risk.Check(MakeTseReq(200)).has_value());
+  EXPECT_TRUE(risk.Check(MakeTseReq(1000)).has_value());
+}
+
+TEST(RiskManagerLotSizeTest, NonMultipleOfLotRejected) {
+  RiskManager risk;
+  SymbolConfig cfg;
+  cfg.lot_size = 100;
+  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
+
+  auto result = risk.Check(MakeTseReq(150));
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), OemsError::kRiskBreachLotSize);
+
+  auto result2 = risk.Check(MakeTseReq(99));
+  ASSERT_FALSE(result2.has_value());
+  EXPECT_EQ(result2.error(), OemsError::kRiskBreachLotSize);
+}
+
+TEST(RiskManagerLotSizeTest, NonStandardLotSizeEnforced) {
+  // Some TSE names still trade in 1,000-share lots — ensure the rule is
+  // not hard-coded to 100.
+  RiskManager risk;
+  SymbolConfig cfg;
+  cfg.lot_size = 1000;
+  risk.SetSymbolConfig(Symbol{"1301"}, cfg);
+  RiskRequest req = MakeTseReq(500);
+  req.symbol = Symbol{"1301"};
+  auto result = risk.Check(req);
+  ASSERT_FALSE(result.has_value());
+  EXPECT_EQ(result.error(), OemsError::kRiskBreachLotSize);
+}
+
 }  // namespace
 }  // namespace oems::risk

@@ -51,29 +51,5 @@ TEST(SymbolConfigTest, SetOverwritesPreviousConfig) {
   EXPECT_EQ(got->lot_size, 1000);
 }
 
-TEST(SymbolConfigTest, ConfigDoesNotChangeCheckBehaviourYet) {
-  // W2 installs the plumbing only: the three new check hooks are stubs
-  // that return success. A request that would violate lot/tick/daily
-  // rules in later PRs must still be accepted here so W2 introduces
-  // zero behavioural change.
-  RiskManager risk;
-  SymbolConfig cfg;
-  cfg.lot_size = 100;  // 150 is not a multiple — W3 would reject.
-  cfg.previous_close = 3000;
-  cfg.daily_limit_bps = 100;                                       // ±1% — 5000 would blow through.
-  cfg.tick_bands = {TickBand{.low = 0, .high = 9999, .tick = 5}};  // 5001 not on grid.
-  risk.SetSymbolConfig(Symbol{"7203"}, cfg);
-
-  RiskRequest req{
-      .symbol = Symbol{"7203"},
-      .side = Side::kBuy,
-      .type = OrderType::kLimit,
-      .price = 5001,
-      .quantity = 150,
-  };
-  auto result = risk.Check(req);
-  EXPECT_TRUE(result.has_value());
-}
-
 }  // namespace
 }  // namespace oems::risk

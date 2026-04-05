@@ -95,7 +95,19 @@ auto RiskManager::GetSymbolConfig(const Symbol& symbol) const -> const SymbolCon
 }
 
 auto RiskManager::CheckLotSize(const RiskRequest& req) const -> Result<void> {
-  (void)req;  // Implemented in follow-up PR (W3).
+  auto it = configs_.find(req.symbol.value);
+  if (it == configs_.end()) {
+    // Unconfigured symbol: fall through (matches existing behaviour).
+    return {};
+  }
+  const Quantity lot = it->second.lot_size;
+  if (lot <= 0) {
+    // Sentinel 0 means the rule is disabled for this symbol.
+    return {};
+  }
+  if (req.quantity % lot != 0) {
+    return std::unexpected(OemsError::kRiskBreachLotSize);
+  }
   return {};
 }
 

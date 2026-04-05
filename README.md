@@ -58,19 +58,19 @@ Apache-2.0 — see [LICENSE](LICENSE).
 See [docs/architecture.md](docs/architecture.md) for the full v1 design.
 The implementation follows the recommended build order:
 
-| Module              | Path                          | Purpose                                    |
-|---------------------|-------------------------------|--------------------------------------------|
-| Foundation types    | `src/core/types/`             | OrderId, Price, Symbol, Result<T>, errors |
-| Matching engine     | `src/core/matching/`          | Price-time-priority order book             |
-| Risk manager        | `src/core/risk/`              | Pre-trade controls                         |
-| Order manager       | `src/core/order/`             | Lifecycle, events, coordination            |
-| Persistence         | `src/core/persistence/`       | SQLite-backed durable state                |
-| HTTP/JSON API       | `src/core/api/` + `src/api-gen/` | oatpp server, spec-first (openapi.yaml)  |
-| FIX gateway         | `src/core/fix/`               | FIX4 session + application translation     |
-| Execution algos     | `src/core/algo/`              | TWAP and VWAP slice generation             |
-| Market data         | `src/core/market_data/`       | BBO snapshots, reference prices            |
-| Server              | `src/main.cc`                 | Assembles modules, runs HTTP server        |
-| CLI                 | `src/cli/main.cc`             | Developer command-line client              |
+| Module              | Path                                                | Purpose                                    |
+|---------------------|-----------------------------------------------------|--------------------------------------------|
+| Foundation types    | `src/core/types/`                                   | OrderId, Price, Symbol, Result<T>, errors |
+| Matching engine     | `src/core/matching/`                                | Price-time-priority order book             |
+| Risk manager        | `src/core/risk/`                                    | Pre-trade controls                         |
+| Order manager       | `src/core/order/`                                   | Lifecycle, events, coordination            |
+| Persistence         | `src/core/persistence/`                             | SQLite-backed durable state                |
+| HTTP/JSON API       | `src/core/api/` + `src/api-gen/`                    | oatpp server, spec-first (openapi.yaml)   |
+| FIX gateway         | `src/core/fix/`                                     | FIX4 session + application translation     |
+| Execution algos     | `src/core/algo/`                                    | TWAP and VWAP slice generation             |
+| Market data         | `src/core/market_data/`                             | BBO snapshots, reference prices            |
+| Server              | [src/main.cc](@ref src/main.cc)                     | Assembles modules, runs HTTP server        |
+| CLI                 | [src/cli/main.cc](@ref src/cli/main.cc)             | Developer command-line client              |
 
 ## CLI usage
 

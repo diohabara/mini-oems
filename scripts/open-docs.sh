@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-target="${1:-build/docs/html/index.html}"
+target="${1:-build/docs/ja/index.html}"
 
 if [ ! -f "$target" ]; then
   printf 'docs not found: %s\n' "$target" >&2

@@ -53,6 +53,21 @@ auto ParseRequestType(const oatpp::String& s) -> Result<OrderType> {
   return std::unexpected(OemsError::kInvalidOrderType);
 }
 
+auto ParseRequestStatus(const oatpp::String& s) -> Result<OrderStatus> {
+  if (!s) {
+    return std::unexpected(OemsError::kInvalidOrderType);
+  }
+  std::string v = *s;
+  if (v == "PendingNew") return OrderStatus::kPendingNew;
+  if (v == "Accepted") return OrderStatus::kAccepted;
+  if (v == "PartiallyFilled") return OrderStatus::kPartiallyFilled;
+  if (v == "Filled") return OrderStatus::kFilled;
+  if (v == "PendingCancel") return OrderStatus::kPendingCancel;
+  if (v == "Cancelled") return OrderStatus::kCancelled;
+  if (v == "Rejected") return OrderStatus::kRejected;
+  return std::unexpected(OemsError::kInvalidOrderType);
+}
+
 auto ErrorToStatus(OemsError err) -> std::int32_t {
   switch (err) {
     case OemsError::kOrderNotFound:
@@ -227,14 +242,11 @@ std::shared_ptr<oatpp::web::protocol::http::outgoing::Response> OrdersController
   }
   std::optional<OrderStatus> status_filter;
   if (status && !status->empty()) {
-    std::string s = *status;
-    if (s == "PendingNew") status_filter = OrderStatus::kPendingNew;
-    else if (s == "Accepted") status_filter = OrderStatus::kAccepted;
-    else if (s == "PartiallyFilled") status_filter = OrderStatus::kPartiallyFilled;
-    else if (s == "Filled") status_filter = OrderStatus::kFilled;
-    else if (s == "PendingCancel") status_filter = OrderStatus::kPendingCancel;
-    else if (s == "Cancelled") status_filter = OrderStatus::kCancelled;
-    else if (s == "Rejected") status_filter = OrderStatus::kRejected;
+    auto parsed = ParseRequestStatus(status);
+    if (!parsed.has_value()) {
+      return createDtoResponse(Status::CODE_400, MakeError("invalid order status"));
+    }
+    status_filter = *parsed;
   }
 
   auto orders = services->om->GetOrders(sym_filter, status_filter);

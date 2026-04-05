@@ -6,12 +6,12 @@
  * @brief Multi-symbol matching engine routing to per-symbol order books.
  */
 
+#include <algorithm>
 #include <string>
 #include <unordered_map>
-#include <algorithm>
 
-#include "core/order/order.h"
 #include "core/matching/order_book.h"
+#include "core/order/order.h"
 #include "core/types/error.h"
 #include "core/types/types.h"
 

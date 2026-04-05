@@ -97,7 +97,8 @@ auto FixMessage::ParseStrict(std::string_view raw) -> Result<FixMessage> {
   auto [body_ptr, body_ec] = std::from_chars(
       body_length->data(), body_length->data() + body_length->size(), claimed_body_length);
   if (body_ec != std::errc{} || claimed_body_length < 0 ||
-      std::cmp_not_equal(static_cast<std::size_t>(claimed_body_length), checksum_pos - body_start + 1)) {
+      std::cmp_not_equal(static_cast<std::size_t>(claimed_body_length),
+                         checksum_pos - body_start + 1)) {
     return std::unexpected(OemsError::kFixParseError);
   }
 

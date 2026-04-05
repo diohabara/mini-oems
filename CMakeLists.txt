@@ -141,7 +141,11 @@ target_link_libraries(oems_fix PUBLIC oems_types oems_order oems_matching oems_r
 # the Config and include Targets.cmake directly.  The exported oatpp::oatpp
 # target carries valid INTERFACE_INCLUDE_DIRECTORIES already.
 find_file(OATPP_TARGETS_CMAKE oatppTargets.cmake
-    PATHS /nix/var/nix/profiles/default/lib/cmake /usr/lib/cmake /usr/local/lib/cmake
+    PATHS
+        /nix/var/nix/profiles/default/lib/cmake
+        $ENV{HOME}/.nix-profile/lib/cmake
+        /usr/lib/cmake
+        /usr/local/lib/cmake
     PATH_SUFFIXES oatpp-1.3.0
     NO_DEFAULT_PATH REQUIRED)
 include(${OATPP_TARGETS_CMAKE})

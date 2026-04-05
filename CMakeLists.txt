@@ -72,11 +72,6 @@ target_link_libraries(oems_risk PUBLIC oems_types)
 # ---------------------------------------------------------------------------
 # Core library: order
 # ---------------------------------------------------------------------------
-add_library(oems_order
-    src/core/order/order_manager.cc
-)
-target_link_libraries(oems_order PUBLIC oems_types oems_matching oems_risk)
-
 # ---------------------------------------------------------------------------
 # Third-party: vendored SQLite
 # ---------------------------------------------------------------------------
@@ -92,11 +87,22 @@ target_compile_definitions(oems_sqlite PRIVATE
 
 # ---------------------------------------------------------------------------
 # Core library: persistence
+# Uses order/OrderEvent/Fill types through headers only (via oems_types include
+# path). Does not link against oems_order to avoid a link-time cycle, since
+# oems_order now calls into oems_persistence at runtime.
 # ---------------------------------------------------------------------------
 add_library(oems_persistence
     src/core/persistence/database.cc
 )
-target_link_libraries(oems_persistence PUBLIC oems_types oems_order oems_matching oems_sqlite)
+target_link_libraries(oems_persistence PUBLIC oems_types oems_matching oems_sqlite)
+
+# ---------------------------------------------------------------------------
+# Core library: order
+# ---------------------------------------------------------------------------
+add_library(oems_order
+    src/core/order/order_manager.cc
+)
+target_link_libraries(oems_order PUBLIC oems_types oems_matching oems_risk oems_persistence)
 
 # ---------------------------------------------------------------------------
 # Core library: algo

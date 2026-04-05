@@ -107,6 +107,12 @@ class OrderBook {
   auto CancelOrder(OrderId id) -> Result<BookEntry>;
 
   /**
+   * @brief Restore a resting order directly onto the book without matching.
+   */
+  auto RestoreRestingOrder(OrderId id, Side side, Price price, Quantity qty, Timestamp timestamp)
+      -> Result<void>;
+
+  /**
    * @brief Return the bid side as sorted price levels (best first).
    */
   [[nodiscard]] auto Bids() const -> std::vector<PriceLevel>;

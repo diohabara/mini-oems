@@ -8,7 +8,9 @@
 
 #include <string>
 #include <unordered_map>
+#include <algorithm>
 
+#include "core/order/order.h"
 #include "core/matching/order_book.h"
 #include "core/types/error.h"
 #include "core/types/types.h"
@@ -49,6 +51,18 @@ class MatchingEngine {
   [[nodiscard]] auto GetBook(const Symbol& symbol) const -> Result<const OrderBook*>;
 
   /**
+   * @brief Restore a persisted resting limit order directly into its book.
+   */
+  auto RestoreRestingOrder(const order::Order& order) -> Result<void>;
+
+  /**
+   * @brief Seed the next globally unique execution id after recovery.
+   */
+  void SeedNextExecutionId(ExecutionId next_execution_id) {
+    next_execution_id_ = std::max<ExecutionId>(1, next_execution_id);
+  }
+
+  /**
    * @brief Number of distinct symbols currently tracked.
    */
   [[nodiscard]] auto BookCount() const -> std::size_t { return books_.size(); }
@@ -57,6 +71,7 @@ class MatchingEngine {
   auto GetOrCreateBook(const Symbol& symbol) -> OrderBook&;
 
   std::unordered_map<std::string, OrderBook> books_;
+  ExecutionId next_execution_id_{1};
 };
 
 }  // namespace oems::matching

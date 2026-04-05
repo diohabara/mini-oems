@@ -59,5 +59,21 @@ TEST(MatchingEngineTest, GetBookReturnsNonNull) {
   EXPECT_EQ((*book)->OrderCount(), 1U);
 }
 
+TEST(MatchingEngineTest, ExecutionIdsAreUniqueAcrossSymbols) {
+  MatchingEngine eng;
+
+  ASSERT_TRUE(eng.AddOrder(Symbol{"AAPL"}, 1, Side::kSell, OrderType::kLimit, 10000, 10));
+  auto aapl_fill = eng.AddOrder(Symbol{"AAPL"}, 2, Side::kBuy, OrderType::kLimit, 10000, 10);
+  ASSERT_TRUE(aapl_fill.has_value());
+  ASSERT_EQ(aapl_fill->fills.size(), 1U);
+
+  ASSERT_TRUE(eng.AddOrder(Symbol{"GOOG"}, 3, Side::kSell, OrderType::kLimit, 20000, 10));
+  auto goog_fill = eng.AddOrder(Symbol{"GOOG"}, 4, Side::kBuy, OrderType::kLimit, 20000, 10);
+  ASSERT_TRUE(goog_fill.has_value());
+  ASSERT_EQ(goog_fill->fills.size(), 1U);
+
+  EXPECT_NE(aapl_fill->fills[0].execution_id, goog_fill->fills[0].execution_id);
+}
+
 }  // namespace
 }  // namespace oems::matching

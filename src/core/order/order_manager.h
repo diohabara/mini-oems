@@ -23,6 +23,10 @@
 #include "core/types/error.h"
 #include "core/types/types.h"
 
+namespace oems::persistence {
+class Database;
+}
+
 namespace oems::order {
 
 /**
@@ -39,7 +43,8 @@ class OrderManager {
    *
    * The collaborators must outlive the OrderManager.
    */
-  OrderManager(risk::RiskManager& risk, matching::MatchingEngine& engine);
+  OrderManager(risk::RiskManager& risk, matching::MatchingEngine& engine,
+               persistence::Database* db = nullptr);
 
   /**
    * @brief Submit a new order.
@@ -53,6 +58,11 @@ class OrderManager {
    * @brief Cancel a resting order by internal id.
    */
   auto CancelOrder(const CancelOrderRequest& req) -> Result<Order>;
+
+  /**
+   * @brief Restore persisted runtime state from the backing database.
+   */
+  auto RestoreFromDatabase() -> Result<void>;
 
   /**
    * @brief Look up a single order by internal id.
@@ -88,6 +98,7 @@ class OrderManager {
 
   risk::RiskManager& risk_;
   matching::MatchingEngine& engine_;
+  persistence::Database* db_;
 
   OrderId next_order_id_{1};
   std::uint64_t next_event_id_{1};

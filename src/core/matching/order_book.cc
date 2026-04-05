@@ -69,6 +69,21 @@ auto OrderBook::CancelOrder(OrderId id) -> Result<BookEntry> {
   return cancel_in(asks_);
 }
 
+auto OrderBook::RestoreRestingOrder(OrderId id, Side side, Price price, Quantity qty,
+                                    Timestamp timestamp) -> Result<void> {
+  if (qty <= 0) {
+    return std::unexpected(OemsError::kInvalidQuantity);
+  }
+  if (price <= 0) {
+    return std::unexpected(OemsError::kInvalidPrice);
+  }
+  if (id_index_.contains(id)) {
+    return std::unexpected(OemsError::kDuplicateOrder);
+  }
+  Rest(id, side, price, qty, timestamp);
+  return {};
+}
+
 auto OrderBook::Bids() const -> std::vector<PriceLevel> {
   std::vector<PriceLevel> levels;
   levels.reserve(bids_.size());

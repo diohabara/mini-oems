@@ -6,7 +6,14 @@ namespace oems::matching {
 
 auto MatchingEngine::AddOrder(const Symbol& symbol, OrderId id, Side side, OrderType type,
                               Price price, Quantity qty) -> Result<AddOrderResult> {
-  return GetOrCreateBook(symbol).AddOrder(id, side, type, price, qty);
+  auto result = GetOrCreateBook(symbol).AddOrder(id, side, type, price, qty);
+  if (!result.has_value()) {
+    return result;
+  }
+  for (auto& fill : result->fills) {
+    fill.execution_id = next_execution_id_++;
+  }
+  return result;
 }
 
 auto MatchingEngine::CancelOrder(const Symbol& symbol, OrderId id) -> Result<BookEntry> {
@@ -23,6 +30,15 @@ auto MatchingEngine::GetBook(const Symbol& symbol) const -> Result<const OrderBo
     return std::unexpected(OemsError::kBookNotFound);
   }
   return &it->second;
+}
+
+auto MatchingEngine::RestoreRestingOrder(const order::Order& order) -> Result<void> {
+  if (order.type != OrderType::kLimit || order.remaining_qty <= 0) {
+    return {};
+  }
+  return GetOrCreateBook(order.symbol)
+      .RestoreRestingOrder(order.internal_id, order.side, order.price, order.remaining_qty,
+                           order.created_at);
 }
 
 auto MatchingEngine::GetOrCreateBook(const Symbol& symbol) -> OrderBook& {

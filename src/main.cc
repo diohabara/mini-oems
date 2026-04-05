@@ -93,7 +93,12 @@ auto main(std::int32_t argc, char** argv) -> std::int32_t {
 
     oems::risk::RiskManager risk;
     oems::matching::MatchingEngine engine;
-    oems::order::OrderManager om(risk, engine);
+    oems::order::OrderManager om(risk, engine, &*db);
+    if (auto restored = om.RestoreFromDatabase(); !restored.has_value()) {
+      std::println("recovery failed");
+      oatpp::base::Environment::destroy();
+      return 1;
+    }
 
     oems::api::Services services{.om = &om, .engine = &engine};
     oems::api::SetServices(&services);

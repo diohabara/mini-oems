@@ -1,12 +1,16 @@
 #include "core/order/order_manager.h"
 
+#include <algorithm>
 #include <format>
 #include <utility>
 
+#include "core/persistence/database.h"
+
 namespace oems::order {
 
-OrderManager::OrderManager(risk::RiskManager& risk, matching::MatchingEngine& engine)
-    : risk_(risk), engine_(engine) {}
+OrderManager::OrderManager(risk::RiskManager& risk, matching::MatchingEngine& engine,
+                           persistence::Database* db)
+    : risk_(risk), engine_(engine), db_(db) {}
 
 auto OrderManager::SubmitOrder(const NewOrderRequest& req) -> Result<Order> {
   // Basic validation (risk will also validate).
@@ -47,6 +51,9 @@ auto OrderManager::SubmitOrder(const NewOrderRequest& req) -> Result<Order> {
     orders_[rejected.internal_id] = rejected;
     AppendEvent(rejected.internal_id, EventType::kNewRequested, req.client_order_id);
     AppendEvent(rejected.internal_id, EventType::kRejected, std::string(ErrorName(ok.error())));
+    if (db_ != nullptr) {
+      (void)db_->SaveOrder(rejected);
+    }
     return std::unexpected(ok.error());
   }
 
@@ -76,6 +83,9 @@ auto OrderManager::SubmitOrder(const NewOrderRequest& req) -> Result<Order> {
     order.updated_at = Now();
     orders_[id] = order;
     AppendEvent(id, EventType::kRejected, std::string(ErrorName(match_result.error())));
+    if (db_ != nullptr) {
+      (void)db_->SaveOrder(order);
+    }
     return std::unexpected(match_result.error());
   }
 
@@ -100,6 +110,9 @@ auto OrderManager::SubmitOrder(const NewOrderRequest& req) -> Result<Order> {
   }
   order.updated_at = Now();
   orders_[id] = order;
+  if (db_ != nullptr) {
+    (void)db_->SaveOrder(order);
+  }
   return order;
 }
 
@@ -123,7 +136,61 @@ auto OrderManager::CancelOrder(const CancelOrderRequest& req) -> Result<Order> {
   order.status = OrderStatus::kCancelled;
   order.updated_at = Now();
   AppendEvent(order.internal_id, EventType::kCancelled, "");
+  if (db_ != nullptr) {
+    (void)db_->SaveOrder(order);
+  }
   return order;
+}
+
+auto OrderManager::RestoreFromDatabase() -> Result<void> {
+  if (db_ == nullptr) {
+    return {};
+  }
+
+  auto orders = db_->LoadOrders();
+  if (!orders.has_value()) {
+    return std::unexpected(orders.error());
+  }
+  auto events = db_->LoadAllEvents();
+  if (!events.has_value()) {
+    return std::unexpected(events.error());
+  }
+  auto executions = db_->LoadExecutions();
+  if (!executions.has_value()) {
+    return std::unexpected(executions.error());
+  }
+
+  orders_.clear();
+  events_ = std::move(*events);
+  executions_ = std::move(*executions);
+
+  OrderId max_order_id = 0;
+  std::uint64_t max_event_id = 0;
+  ExecutionId max_execution_id = 0;
+
+  for (const auto& event : events_) {
+    max_event_id = std::max(max_event_id, event.event_id);
+  }
+  for (const auto& fill : executions_) {
+    max_execution_id = std::max(max_execution_id, fill.execution_id);
+  }
+  engine_.SeedNextExecutionId(max_execution_id + 1);
+
+  for (const auto& order : *orders) {
+    orders_[order.internal_id] = order;
+    max_order_id = std::max(max_order_id, order.internal_id);
+    if ((order.status == OrderStatus::kAccepted ||
+         order.status == OrderStatus::kPartiallyFilled) &&
+        order.type == OrderType::kLimit && order.remaining_qty > 0) {
+      if (auto restored = engine_.RestoreRestingOrder(order); !restored.has_value()) {
+        return std::unexpected(restored.error());
+      }
+    }
+  }
+
+  next_order_id_ = max_order_id + 1;
+  next_event_id_ = max_event_id + 1;
+  return {};
 }
 
 auto OrderManager::GetOrder(OrderId id) const -> Result<Order> {
@@ -163,13 +230,17 @@ auto OrderManager::GetEvents(OrderId id) const -> std::vector<OrderEvent> {
 auto OrderManager::GetAllExecutions() const -> std::vector<matching::Fill> { return executions_; }
 
 void OrderManager::AppendEvent(OrderId id, EventType type, std::string detail) {
-  events_.push_back(OrderEvent{
+  OrderEvent event{
       .event_id = NextEventId(),
       .order_id = id,
       .type = type,
       .timestamp = Now(),
       .detail = std::move(detail),
-  });
+  };
+  events_.push_back(event);
+  if (db_ != nullptr) {
+    (void)db_->AppendEvent(event);
+  }
 }
 
 void OrderManager::ApplyFills(Order& order, const std::vector<matching::Fill>& fills) {
@@ -180,6 +251,9 @@ void OrderManager::ApplyFills(Order& order, const std::vector<matching::Fill>& f
     order.filled_qty += fill.quantity;
     order.remaining_qty -= fill.quantity;
     executions_.push_back(fill);
+    if (db_ != nullptr) {
+      (void)db_->SaveExecution(fill);
+    }
 
     // Also apply to the passive order (counterparty side).
     auto passive_it = orders_.find(fill.passive_order_id);
@@ -196,6 +270,9 @@ void OrderManager::ApplyFills(Order& order, const std::vector<matching::Fill>& f
         passive.status = OrderStatus::kPartiallyFilled;
         AppendEvent(passive.internal_id, EventType::kPartialFill,
                     std::format("exec={} qty={}", fill.execution_id, fill.quantity));
+      }
+      if (db_ != nullptr) {
+        (void)db_->SaveOrder(passive);
       }
     }
 

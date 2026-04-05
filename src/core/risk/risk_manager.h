@@ -12,6 +12,7 @@
 #include <unordered_map>
 
 #include "core/types/error.h"
+#include "core/types/instrument.h"
 #include "core/types/types.h"
 
 namespace oems::risk {
@@ -69,12 +70,36 @@ class RiskManager {
    */
   [[nodiscard]] auto GetReferencePrice(const Symbol& symbol) const -> std::optional<Price>;
 
+  /**
+   * @brief Install / replace the per-symbol TSE configuration
+   *        (lot size, tick bands, previous close, daily limit).
+   *
+   * Symbols without a config fall through every TSE-specific check.
+   */
+  void SetSymbolConfig(const Symbol& symbol, SymbolConfig config);
+
+  /**
+   * @brief Look up the current config for a symbol.
+   * @return A pointer into the internal map, or nullptr if unconfigured.
+   *         The pointer is invalidated by the next @c SetSymbolConfig call.
+   */
+  [[nodiscard]] auto GetSymbolConfig(const Symbol& symbol) const -> const SymbolConfig*;
+
  private:
   auto CheckPriceBand(const RiskRequest& req) const -> Result<void>;
   auto CheckRateLimit() -> Result<void>;
+  // TSE-specific checks. Each returns success when no config is set for
+  // the symbol or the relevant field is at its sentinel (disabled) value.
+  // Full implementations land in follow-up PRs; W2 keeps them as no-ops
+  // so the seam is in place for W3/W4/W5 without introducing behavioural
+  // change.
+  auto CheckLotSize(const RiskRequest& req) const -> Result<void>;
+  auto CheckTickSize(const RiskRequest& req) const -> Result<void>;
+  auto CheckDailyLimit(const RiskRequest& req) const -> Result<void>;
 
   RiskLimits limits_;
   std::unordered_map<std::string, Price> reference_prices_;
+  std::unordered_map<std::string, SymbolConfig> configs_;
   std::deque<Timestamp> recent_orders_;
 };
 
